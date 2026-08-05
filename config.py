@@ -25,7 +25,7 @@ if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
     logger.warning("SUPABASE_URL or SUPABASE_SERVICE_KEY not set. Real DB integration is disabled. Local mock mode (SQLite) is enabled.")
 
 # Project settings
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@molum")
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@molum_chain_official")
 MINI_APP_URL = os.getenv("MINI_APP_URL", "https://molum-miniapp.vercel.app")
 
 # Webhook deployment settings (for hosting platforms like Render or Heroku)

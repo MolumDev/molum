@@ -19,15 +19,16 @@ async def check_channel_subscription(bot: Bot, user_id: int) -> bool:
         return member.status in ["creator", "administrator", "member", "restricted"]
     except Exception as e:
         logger.warning(f"Could not verify subscription for user {user_id} on {CHANNEL_USERNAME}: {e}")
-        # Return True for admin testing or if there's an API error so the bot doesn't completely block
-        # during development. However, in production it checks properly.
-        # Let's default to False but log details.
         return False
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, _: Callable[..., str], bot: Bot):
     user_id = message.from_user.id
     username = message.from_user.username
+    first_name = message.from_user.first_name
+    
+    # Use first_name or username for personal greeting, fallback to "friend"
+    user_display = first_name or username or "friend"
     
     # Fetch existing profile
     profile = await database.get_profile(user_id)
@@ -75,23 +76,33 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
                     ref_msg = i18n_manager.get(
                         "referral_notification_referrer",
                         lang=ref_lang,
-                        referee_username=username or f"id{user_id}"
+                        referee_username=username or first_name or f"id{user_id}"
                     )
                     try:
                         await bot.send_message(chat_id=referred_by, text=ref_msg)
                     except Exception as e:
                         logger.warning(f"Failed to notify referrer {referred_by}: {e}")
                         
-            text = _("welcome_subscribed")
+            # Subscribed first time: Show greeting & sticker pack
+            lang = profile.get("language_code", "en")
+            welcome_text = _("welcome_subscribed", username=user_display)
+            sticker_text = _("sticker_pack_message")
+            kb = keyboards.get_main_menu_keyboard(_, lang=lang)
+            
+            await message.answer(welcome_text, parse_mode="Markdown")
+            await message.answer(sticker_text, reply_markup=kb, parse_mode="Markdown")
         else:
             # Already registered, greeting back
             await database.update_profile_subscription(user_id, True)
             await database.complete_user_task(user_id, "subscribe")
-            text = _("welcome_back", username=username or f"id{user_id}")
             
-        lang = profile.get("language_code", "en")
-        kb = keyboards.get_main_menu_keyboard(_, lang=lang)
-        await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+            lang = profile.get("language_code", "en")
+            welcome_back_text = _("welcome_back", username=user_display)
+            sticker_text = _("sticker_pack_message")
+            kb = keyboards.get_main_menu_keyboard(_, lang=lang)
+            
+            await message.answer(welcome_back_text, parse_mode="Markdown")
+            await message.answer(sticker_text, reply_markup=kb, parse_mode="Markdown")
     else:
         # Not subscribed yet
         if not profile:
@@ -105,7 +116,7 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
             )
             
         lang = profile.get("language_code", "en")
-        text = _("welcome_not_subscribed")
+        text = _("welcome_not_subscribed", username=user_display)
         kb = keyboards.get_subscription_keyboard(_, lang=lang)
         await message.answer(text, reply_markup=kb, parse_mode="Markdown")
 
@@ -114,6 +125,9 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
 async def cb_check_subscription(callback: CallbackQuery, _: Callable[..., str], bot: Bot):
     user_id = callback.from_user.id
     username = callback.from_user.username
+    first_name = callback.from_user.first_name
+    
+    user_display = first_name or username or "friend"
     
     is_subscribed = await check_channel_subscription(bot, user_id)
     profile = await database.get_profile(user_id)
@@ -146,7 +160,7 @@ async def cb_check_subscription(callback: CallbackQuery, _: Callable[..., str], 
                     ref_msg = i18n_manager.get(
                         "referral_notification_referrer",
                         lang=ref_lang,
-                        referee_username=username or f"id{user_id}"
+                        referee_username=username or first_name or f"id{user_id}"
                     )
                     try:
                         await bot.send_message(chat_id=referred_by, text=ref_msg)
@@ -159,9 +173,12 @@ async def cb_check_subscription(callback: CallbackQuery, _: Callable[..., str], 
         except Exception:
             pass
             
-        text = _("welcome_subscribed") if first_time_sub else _("welcome_back", username=username or f"id{user_id}")
+        welcome_text = _("welcome_subscribed", username=user_display) if first_time_sub else _("welcome_back", username=user_display)
+        sticker_text = _("sticker_pack_message")
         kb = keyboards.get_main_menu_keyboard(_, lang=lang)
-        await bot.send_message(chat_id=user_id, text=text, reply_markup=kb, parse_mode="Markdown")
+        
+        await bot.send_message(chat_id=user_id, text=welcome_text, parse_mode="Markdown")
+        await bot.send_message(chat_id=user_id, text=sticker_text, reply_markup=kb, parse_mode="Markdown")
     else:
         # Failed check
         await callback.answer(_("task_check_failed"), show_alert=True)
