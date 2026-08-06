@@ -21,6 +21,90 @@ async def check_chat_membership(bot: Bot, user_id: int, chat_id: str) -> bool:
         logger.warning(f"Could not verify membership for user {user_id} on {chat_id}: {e}")
         return False
 
+async def verify_task_scenario(bot: Bot, user_id: int, task_details: dict, profile: dict) -> bool:
+    """
+    Extremely versatile tasks verification engine.
+    Supports 9 distinct scenarios to easily construct viral and growth-hacking tasks.
+    """
+    verify_type = task_details.get("verify_type", "bot")
+    verify_chat = task_details.get("verify_chat")
+    verify_value = task_details.get("verify_value")
+    
+    logger.info(f"Verifying task {task_details.get('task_id')} (Type: {verify_type}) for user {user_id}")
+
+    # SCENARIO 1: Telegram Channel Subscription Check
+    if verify_type == "channel":
+        chat_id = verify_chat or "@molum_chain_official"
+        return await check_chat_membership(bot, user_id, chat_id)
+
+    # SCENARIO 2: Telegram Group Chat Membership Check (Chat/Boost)
+    elif verify_type == "chat":
+        chat_id = verify_chat or "@molum_chat"
+        return await check_chat_membership(bot, user_id, chat_id)
+
+    # SCENARIO 3: Connected Solana Wallet Check
+    elif verify_type == "wallet":
+        return bool(profile and profile.get("wallet_address") and len(profile["wallet_address"]) > 20)
+
+    # SCENARIO 4: Referral Count Milestone Check
+    elif verify_type == "referrals":
+        req_val = verify_value or 3
+        ref_count = profile.get("referral_count", 0) if profile else 0
+        return ref_count >= req_val
+
+    # SCENARIO 5: Real Telegram Channel Boost Check (Advanced!)
+    elif verify_type == "boost":
+        chat_id = verify_chat or "@molum_chain_official"
+        try:
+            boosts_info = await bot.get_user_chat_boosts(chat_id=chat_id, user_id=user_id)
+            # If the boosts list is not empty, the user has boosted the channel!
+            return len(boosts_info.boosts) > 0
+        except Exception as e:
+            logger.warning(f"Failed to query boosts for user {user_id} on {chat_id}: {e}")
+            # If bot doesn't have admin rights, fallback to chat membership check as graceful safety net
+            return await check_chat_membership(bot, user_id, chat_id)
+
+    # SCENARIO 6: Brand keyword/suffix in Username or Name (Growth Hacking!)
+    # E.g. Users get points for adding "🦊 Molum" to their Telegram first name
+    elif verify_type == "name_suffix":
+        keyword = verify_chat or "Molum"
+        try:
+            chat_user = await bot.get_chat(user_id)
+            first_name = chat_user.first_name or ""
+            last_name = chat_user.last_name or ""
+            username = chat_user.username or ""
+            
+            full_text = f"{first_name} {last_name} {username}"
+            return keyword.lower() in full_text.lower()
+        except Exception as e:
+            logger.warning(f"Failed to fetch profile details for suffix check on user {user_id}: {e}")
+            return False
+
+    # SCENARIO 7: Telegram Premium Account Check (Anti-bot / Quality filter)
+    elif verify_type == "premium":
+        try:
+            chat_user = await bot.get_chat(user_id)
+            # check is_premium on User object
+            return bool(getattr(chat_user, "is_premium", False))
+        except Exception as e:
+            logger.warning(f"Failed to query premium status for user {user_id}: {e}")
+            return False
+
+    # SCENARIO 8: User Avatar Check (Ensures users have profile pictures)
+    elif verify_type == "avatar":
+        try:
+            photos = await bot.get_user_profile_photos(user_id=user_id, limit=1)
+            return photos.total_count > 0
+        except Exception as e:
+            logger.warning(f"Failed to fetch profile photos for user {user_id}: {e}")
+            return False
+
+    # SCENARIO 9: Auto-complete / Bot Approval (Twitter / Story social task fallbacks)
+    elif verify_type == "bot":
+        return True
+
+    return False
+
 async def render_tasks_message(user_id: int, _, lang: str) -> tuple[str, InlineKeyboardMarkup]:
     """Helper to compile the current tasks message and its keyboard."""
     # Get all active tasks sorted by sort_order
@@ -86,42 +170,9 @@ async def cb_check_task(callback: CallbackQuery, _: Callable[..., str], bot: Bot
         
     reward = task_details["points"]
     title = task_details["title_ru"] if lang == "ru" else task_details["title_en"]
-    verify_type = task_details.get("verify_type", "bot")
-    verify_chat = task_details.get("verify_chat")
-    verify_value = task_details.get("verify_value")
     
-    # 3. Perform dynamic verification logic
-    success = False
-    
-    if verify_type == "channel":
-        chat_to_check = verify_chat or "@molum_chain_official"
-        success = await check_chat_membership(bot, user_id, chat_to_check)
-        if success:
-            await database.update_profile_subscription(user_id, True)
-            
-    elif verify_type == "chat":
-        chat_to_check = verify_chat or "@molum_chat"
-        success = await check_chat_membership(bot, user_id, chat_to_check)
-            
-    elif verify_type == "referrals":
-        # Check actual referral count in database
-        ref_count = await database.get_referral_count(user_id)
-        req_value = verify_value or 3
-        if ref_count >= req_value:
-            success = True
-            
-    elif verify_type == "wallet":
-        # Check if wallet address is linked in database
-        if profile and profile.get("wallet_address"):
-            success = True
-            
-    elif verify_type == "bot":
-        # Social actions (Twitter, Telegram stories, etc.)
-        # Auto-complete successfully when checked to delight users
-        success = True
-        
-    else:
-        success = False
+    # 3. Perform dynamic verification check using our versatile engine
+    success = await verify_task_scenario(bot, user_id, task_details, profile)
         
     if success:
         # Mark as completed and award points

@@ -340,30 +340,44 @@ class SupabaseDatabase:
 
     def complete_user_task(self, telegram_id: int, task_id: str) -> bool:
         status = self.get_user_task_status(telegram_id, task_id)
-        if status and status.get("completed"):
-            return True
-        
-        data = {
-            "telegram_id": telegram_id,
-            "task_id": task_id,
-            "completed": True,
-            "completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-        }
-        res = self.supabase.table('user_tasks').upsert(data).execute()
-        return len(res.data) > 0
+        if status:
+            if status.get("completed"):
+                return True
+            res = self.supabase.table('user_tasks').update({
+                "completed": True,
+                "completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }).eq('telegram_id', telegram_id).eq('task_id', task_id).execute()
+            return len(res.data) > 0
+        else:
+            data = {
+                "telegram_id": telegram_id,
+                "task_id": task_id,
+                "completed": True,
+                "completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }
+            res = self.supabase.table('user_tasks').insert(data).execute()
+            return len(res.data) > 0
 
     def get_setting(self, key: str) -> Optional[str]:
         res = self.supabase.table('settings').select('value').eq('key', key).execute()
         return res.data[0]['value'] if res.data else None
 
     def update_setting(self, key: str, value: str) -> bool:
-        data = {
-            "key": key,
-            "value": value,
-            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
-        }
-        res = self.supabase.table('settings').upsert(data).execute()
-        return len(res.data) > 0
+        existing = self.get_setting(key)
+        if existing is not None:
+            res = self.supabase.table('settings').update({
+                "value": value,
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }).eq('key', key).execute()
+            return len(res.data) > 0
+        else:
+            data = {
+                "key": key,
+                "value": value,
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }
+            res = self.supabase.table('settings').insert(data).execute()
+            return len(res.data) > 0
 
     def add_token_notification(self, telegram_id: int) -> bool:
         res = self.supabase.table('profiles').update({"notify_listing": True}).eq('telegram_id', telegram_id).execute()
