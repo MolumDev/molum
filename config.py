@@ -9,8 +9,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("MolumBot")
 
-# Load environment variables
-load_dotenv()
+# Load environment variables with absolute path resolution
+current_dir = os.path.dirname(os.path.abspath(__file__))
+env_path = os.path.join(current_dir, ".env")
+load_dotenv(dotenv_path=env_path)
 
 # Essential Bot Settings
 BOT_TOKEN = os.getenv("BOT_TOKEN")

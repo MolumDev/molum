@@ -26,16 +26,18 @@ class IsAdmin(Filter):
         user = getattr(event, "from_user", None)
         return user is not None and user.id in ADMIN_IDS
 
-@router.message(Command("admin"), IsAdmin())
-async def cmd_admin(message: Message, _: Callable[..., str]):
-    text = _("admin_panel_title")
-    kb = keyboards.get_admin_main_keyboard(_)
-    await message.answer(text, reply_markup=kb, parse_mode="HTML")
-
 @router.message(Command("admin"))
-async def cmd_admin_denied(message: Message, _: Callable[..., str]):
-    """Deny non-admins."""
-    await message.answer(_("admin_only"))
+async def cmd_admin(message: Message, _: Callable[..., str]):
+    user_id = message.from_user.id
+    logger.info(f"Admin command /admin triggered by user_id={user_id}. Current registered ADMIN_IDS={ADMIN_IDS}")
+    
+    if user_id in ADMIN_IDS:
+        text = _("admin_panel_title")
+        kb = keyboards.get_admin_main_keyboard(_)
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
+    else:
+        logger.warning(f"Unauthorized /admin access attempt by user_id={user_id}. Permitted ADMIN_IDS={ADMIN_IDS}")
+        await message.answer(_("admin_only"))
 
 # --- BACK ACTION ---
 @router.callback_query(F.data == "admin_panel_back", IsAdmin())
@@ -321,11 +323,18 @@ async def cb_admin_clean_db_yes(callback: CallbackQuery, _: Callable[..., str]):
     await callback.answer()
 
 # Command /clean_db with confirmation
-@router.message(Command("clean_db"), IsAdmin())
+@router.message(Command("clean_db"))
 async def cmd_clean_db(message: Message, _: Callable[..., str]):
-    text = "⚠️ **Database Cleanup Confirmation**\n\nAre you absolutely sure you want to clean the database?\nThis will **TRUNCATE CASCADE** all user profiles, referrals, notifications, and reset balances!\n\nThis action is **PERMANENT**."
-    kb = keyboards.get_admin_clean_confirm_keyboard(_)
-    await message.answer(text, reply_markup=kb, parse_mode="HTML")
+    user_id = message.from_user.id
+    logger.info(f"Clean DB command /clean_db triggered by user_id={user_id}. Registered ADMIN_IDS={ADMIN_IDS}")
+    
+    if user_id in ADMIN_IDS:
+        text = "⚠️ <b>Database Cleanup Confirmation</b>\n\nAre you absolutely sure you want to clean the database?\nThis will <b>TRUNCATE CASCADE</b> all user profiles, referrals, notifications, and reset balances!\n\nThis action is <b>PERMANENT</b>."
+        kb = keyboards.get_admin_clean_confirm_keyboard(_)
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
+    else:
+        logger.warning(f"Unauthorized /clean_db attempt by user_id={user_id}. Permitted ADMIN_IDS={ADMIN_IDS}")
+        await message.answer(_("admin_only"))
 
 # Global cancel helper inside States
 @router.message(Command("cancel"))
