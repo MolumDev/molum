@@ -63,9 +63,8 @@ class I18nMiddleware(BaseMiddleware):
             if profile:
                 lang = profile.get("language_code", "en")
             else:
-                # Fallback to user's Telegram language
-                tg_lang = user.language_code
-                lang = "ru" if tg_lang == "ru" else "en"
+                # ALWAYS English for new users, as requested!
+                lang = "en"
         
         # Define translator function
         def translate(key: str, **kwargs) -> str:

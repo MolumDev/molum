@@ -18,7 +18,7 @@ async def cmd_language(message: Message, _: Callable[..., str]):
     
     profile = await database.get_profile(user_id)
     if not profile:
-        profile = await database.create_profile(telegram_id=user_id, username=username)
+        profile = await database.create_profile(telegram_id=user_id, username=username, first_name=message.from_user.first_name)
         
     lang = profile.get("language_code", "en")
     

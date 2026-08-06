@@ -22,11 +22,12 @@ class SQLiteDatabase:
         with self._get_conn() as conn:
             cursor = conn.cursor()
             
-            # Profiles
+            # Profiles - added first_name TEXT column
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS profiles (
                     telegram_id INTEGER PRIMARY KEY,
                     username TEXT,
+                    first_name TEXT,
                     wallet_address TEXT,
                     referred_by INTEGER,
                     total_points INTEGER DEFAULT 0,
@@ -49,13 +50,14 @@ class SQLiteDatabase:
                 )
             """)
             
-            # Tasks
+            # Tasks - added sort_order INTEGER column
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tasks (
                     task_id TEXT PRIMARY KEY,
                     description_key TEXT NOT NULL,
                     points_reward INTEGER DEFAULT 0,
-                    is_active BOOLEAN DEFAULT 1
+                    is_active BOOLEAN DEFAULT 1,
+                    sort_order INTEGER DEFAULT 0
                 )
             """)
             
@@ -91,10 +93,10 @@ class SQLiteDatabase:
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_status', 'pre-launch')")
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('listing_date', '2026-12-31T23:59:59Z')")
             
-            # Default Tasks
-            cursor.execute("INSERT OR IGNORE INTO tasks (task_id, description_key, points_reward, is_active) VALUES ('subscribe', 'task_subscribe_channel', 150, 1)")
-            cursor.execute("INSERT OR IGNORE INTO tasks (task_id, description_key, points_reward, is_active) VALUES ('invite_3_friends', 'task_invite_3_friends', 300, 1)")
-            cursor.execute("INSERT OR IGNORE INTO tasks (task_id, description_key, points_reward, is_active) VALUES ('connect_wallet', 'task_connect_wallet', 200, 1)")
+            # Default Tasks with sort_order
+            cursor.execute("INSERT OR IGNORE INTO tasks (task_id, description_key, points_reward, is_active, sort_order) VALUES ('subscribe', 'task_subscribe_channel', 150, 1, 10)")
+            cursor.execute("INSERT OR IGNORE INTO tasks (task_id, description_key, points_reward, is_active, sort_order) VALUES ('invite_3_friends', 'task_invite_3_friends', 300, 1, 20)")
+            cursor.execute("INSERT OR IGNORE INTO tasks (task_id, description_key, points_reward, is_active, sort_order) VALUES ('connect_wallet', 'task_connect_wallet', 200, 1, 30)")
             
             conn.commit()
             logger.info("Local SQLite database initialized successfully.")
@@ -104,12 +106,12 @@ class SQLiteDatabase:
             row = conn.execute("SELECT * FROM profiles WHERE telegram_id = ?", (telegram_id,)).fetchone()
             return dict(row) if row else None
 
-    def create_profile(self, telegram_id: int, username: str = None, referred_by: int = None, subscription_status: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
+    def create_profile(self, telegram_id: int, username: str = None, first_name: str = None, referred_by: int = None, subscription_status: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
         with self._get_conn() as conn:
             conn.execute("""
-                INSERT OR IGNORE INTO profiles (telegram_id, username, referred_by, subscription_status, total_points, language_code)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (telegram_id, username, referred_by, int(subscription_status), total_points, language_code))
+                INSERT OR IGNORE INTO profiles (telegram_id, username, first_name, referred_by, subscription_status, total_points, language_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (telegram_id, username, first_name, referred_by, int(subscription_status), total_points, language_code))
             conn.commit()
             return self.get_profile(telegram_id)
 
@@ -167,7 +169,8 @@ class SQLiteDatabase:
 
     def get_tasks(self) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:
-            rows = conn.execute("SELECT * FROM tasks WHERE is_active = 1").fetchall()
+            # Added order by sort_order
+            rows = conn.execute("SELECT * FROM tasks WHERE is_active = 1 ORDER BY sort_order ASC").fetchall()
             return [dict(r) for r in rows]
 
     def get_user_tasks(self, telegram_id: int) -> List[Dict[str, Any]]:
@@ -265,13 +268,14 @@ class SupabaseDatabase:
         res = self.supabase.table('profiles').select('*').eq('telegram_id', telegram_id).execute()
         return res.data[0] if res.data else None
 
-    def create_profile(self, telegram_id: int, username: str = None, referred_by: int = None, subscription_status: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
+    def create_profile(self, telegram_id: int, username: str = None, first_name: str = None, referred_by: int = None, subscription_status: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
         existing = self.get_profile(telegram_id)
         if existing:
             return existing
         data = {
             "telegram_id": telegram_id,
             "username": username,
+            "first_name": first_name,
             "referred_by": referred_by,
             "subscription_status": subscription_status,
             "total_points": total_points,
@@ -326,7 +330,8 @@ class SupabaseDatabase:
         return len(res.data) > 0
 
     def get_tasks(self) -> List[Dict[str, Any]]:
-        res = self.supabase.table('tasks').select('*').eq('is_active', True).execute()
+        # Added ordering by sort_order
+        res = self.supabase.table('tasks').select('*').eq('is_active', True).order('sort_order', desc=False).execute()
         return res.data
 
     def get_user_tasks(self, telegram_id: int) -> List[Dict[str, Any]]:
@@ -379,7 +384,6 @@ class SupabaseDatabase:
         return len(res.data) > 0
 
     def get_admin_stats(self) -> Dict[str, Any]:
-        # Fetch stats using basic queries or counts
         profiles_res = self.supabase.table('profiles').select('telegram_id', count='exact').execute()
         total_users = profiles_res.count if profiles_res.count is not None else len(profiles_res.data)
         
@@ -405,13 +409,11 @@ class SupabaseDatabase:
 
     def clean_database(self) -> bool:
         try:
-            # We call the clean_database RPC function configured in schema.sql
             res = self.supabase.rpc('clean_database').execute()
             logger.info(f"Supabase RPC clean_database returned: {res.data}")
             return True
         except Exception as e:
             logger.error(f"Failed to clean Supabase database via RPC: {e}")
-            # Try manual cleanup if RPC is not found
             try:
                 self.supabase.table('token_notifications').delete().neq('telegram_id', 0).execute()
                 self.supabase.table('referrals').delete().neq('id', 0).execute()
@@ -439,8 +441,8 @@ else:
 async def get_profile(telegram_id: int) -> Optional[Dict[str, Any]]:
     return await asyncio.to_thread(_db_impl.get_profile, telegram_id)
 
-async def create_profile(telegram_id: int, username: str = None, referred_by: int = None, subscription_status: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
-    return await asyncio.to_thread(_db_impl.create_profile, telegram_id, username, referred_by, subscription_status, total_points, language_code)
+async def create_profile(telegram_id: int, username: str = None, first_name: str = None, referred_by: int = None, subscription_status: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
+    return await asyncio.to_thread(_db_impl.create_profile, telegram_id, username, first_name, referred_by, subscription_status, total_points, language_code)
 
 async def update_profile_language(telegram_id: int, lang_code: str) -> bool:
     return await asyncio.to_thread(_db_impl.update_profile_language, telegram_id, lang_code)

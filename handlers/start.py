@@ -54,6 +54,7 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
             profile = await database.create_profile(
                 telegram_id=user_id,
                 username=username,
+                first_name=first_name,
                 referred_by=referred_by,
                 subscription_status=True,
                 total_points=100
@@ -110,6 +111,7 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
             profile = await database.create_profile(
                 telegram_id=user_id,
                 username=username,
+                first_name=first_name,
                 referred_by=referred_by,
                 subscription_status=False,
                 total_points=0
