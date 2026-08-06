@@ -3,6 +3,7 @@ import sqlite3
 import datetime
 import logging
 from typing import Dict, List, Any, Optional
+from decimal import Decimal
 from config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 
 logger = logging.getLogger("MolumBot.Database")
@@ -87,6 +88,45 @@ class SQLiteDatabase:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+
+            # Claim Snapshots Table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS claim_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    telegram_id INTEGER NOT NULL UNIQUE REFERENCES profiles (telegram_id) ON DELETE CASCADE,
+                    wallet_address TEXT NOT NULL,
+                    points_snap INTEGER NOT NULL DEFAULT 0,
+                    tokens_allocated REAL NOT NULL DEFAULT 0.0,
+                    claimed BOOLEAN NOT NULL DEFAULT 0,
+                    claimed_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Contests Table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS contests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    reward_points INTEGER NOT NULL DEFAULT 0,
+                    is_active BOOLEAN NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Contest Submissions Table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS contest_submissions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    contest_id INTEGER NOT NULL REFERENCES contests (id) ON DELETE CASCADE,
+                    telegram_id INTEGER NOT NULL REFERENCES profiles (telegram_id) ON DELETE CASCADE,
+                    submission_link TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (telegram_id, contest_id)
+                )
+            """)
             
             # Default Settings
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_status', 'prelaunch')")
@@ -95,7 +135,7 @@ class SQLiteDatabase:
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_price', '0.0042')")
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_chart_url', 'https://dexscreener.com')")
             
-            # Default Tasks seed matching exactly the user prompt
+            # Default Tasks seed
             cursor.execute("""
                 INSERT OR IGNORE INTO tasks (
                     task_id, title_en, title_ru, description_en, description_ru,
@@ -110,7 +150,7 @@ class SQLiteDatabase:
             """)
             
             conn.commit()
-            logger.info("Local SQLite database initialized successfully.")
+            logger.info("Local SQLite database initialized successfully with expanded features.")
 
     def get_profile(self, telegram_id: int) -> Optional[Dict[str, Any]]:
         with self._get_conn() as conn:
@@ -250,10 +290,109 @@ class SQLiteDatabase:
     def clean_database(self) -> bool:
         with self._get_conn() as conn:
             cursor = conn.cursor()
+            cursor.execute("DELETE FROM claim_snapshots")
+            cursor.execute("DELETE FROM contest_submissions")
+            cursor.execute("DELETE FROM contests")
             cursor.execute("DELETE FROM user_tasks")
             cursor.execute("DELETE FROM profiles")
             conn.commit()
             return True
+
+    # ---------- EXPANDED SNAPSHOT & CONTESTS (SQLite) ----------
+    
+    def create_claim_snapshot(self, conversion_rate: float) -> bool:
+        with self._get_conn() as conn:
+            # Drop previous snapshots to prevent conflicts during new run
+            conn.execute("DELETE FROM claim_snapshots")
+            
+            # Fetch users with points > 0 and connected wallets
+            users = conn.execute("SELECT telegram_id, wallet_address, total_points FROM profiles WHERE wallet_address IS NOT NULL AND total_points > 0").fetchall()
+            for u in users:
+                tokens = float(u["total_points"]) / conversion_rate
+                conn.execute("""
+                    INSERT INTO claim_snapshots (telegram_id, wallet_address, points_snap, tokens_allocated)
+                    VALUES (?, ?, ?, ?)
+                """, (u["telegram_id"], u["wallet_address"], u["total_points"], tokens))
+            conn.commit()
+            return True
+
+    def get_claim_snapshot(self, telegram_id: int) -> Optional[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            row = conn.execute("SELECT * FROM claim_snapshots WHERE telegram_id = ?", (telegram_id,)).fetchone()
+            return dict(row) if row else None
+
+    def claim_tokens(self, telegram_id: int) -> bool:
+        with self._get_conn() as conn:
+            cursor = conn.execute("UPDATE claim_snapshots SET claimed = 1, claimed_at = CURRENT_TIMESTAMP WHERE telegram_id = ?", (telegram_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def create_contest(self, title: str, description: str, reward_points: int) -> int:
+        with self._get_conn() as conn:
+            cursor = conn.execute("""
+                INSERT INTO contests (title, description, reward_points, is_active)
+                VALUES (?, ?, ?, 1)
+            """, (title, description, reward_points))
+            conn.commit()
+            return cursor.lastrowid
+
+    def get_active_contests(self) -> List[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            rows = conn.execute("SELECT * FROM contests WHERE is_active = 1 ORDER BY created_at DESC").fetchall()
+            return [dict(r) for r in rows]
+
+    def submit_contest(self, contest_id: int, telegram_id: int, submission_link: str) -> bool:
+        try:
+            with self._get_conn() as conn:
+                conn.execute("""
+                    INSERT INTO contest_submissions (contest_id, telegram_id, submission_link, status)
+                    VALUES (?, ?, ?, 'pending')
+                    ON CONFLICT(telegram_id, contest_id) DO UPDATE SET submission_link = ?, status = 'pending'
+                """, (contest_id, telegram_id, submission_link, submission_link))
+                conn.commit()
+                return True
+        except Exception:
+            return False
+
+    def get_pending_submissions(self) -> List[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            rows = conn.execute("""
+                SELECT cs.id, cs.contest_id, cs.telegram_id, cs.submission_link, cs.status, c.title, c.reward_points, p.username
+                FROM contest_submissions cs
+                JOIN contests c ON cs.contest_id = c.id
+                JOIN profiles p ON cs.telegram_id = p.telegram_id
+                WHERE cs.status = 'pending'
+            """).fetchall()
+            return [dict(r) for r in rows]
+
+    def approve_submission(self, submission_id: int) -> bool:
+        with self._get_conn() as conn:
+            # Fetch submission
+            row = conn.execute("""
+                SELECT cs.telegram_id, c.reward_points 
+                FROM contest_submissions cs
+                JOIN contests c ON cs.contest_id = c.id
+                WHERE cs.id = ? AND cs.status = 'pending'
+            """, (submission_id,)).fetchone()
+            
+            if not row:
+                return False
+                
+            telegram_id = row["telegram_id"]
+            reward = row["reward_points"]
+            
+            # Approve submission
+            conn.execute("UPDATE contest_submissions SET status = 'approved' WHERE id = ?", (submission_id,))
+            # Award points to profile
+            conn.execute("UPDATE profiles SET total_points = total_points + ? WHERE telegram_id = ?", (reward, telegram_id))
+            conn.commit()
+            return True
+
+    def reject_submission(self, submission_id: int) -> bool:
+        with self._get_conn() as conn:
+            cursor = conn.execute("UPDATE contest_submissions SET status = 'rejected' WHERE id = ? AND status = 'pending'", (submission_id,))
+            conn.commit()
+            return cursor.rowcount > 0
 
 
 class SupabaseDatabase:
@@ -424,6 +563,141 @@ class SupabaseDatabase:
                 logger.error(f"Fallback manual clean failed too: {ex}")
                 return False
 
+    # ---------- EXPANDED SNAPSHOT & CONTESTS (Supabase) ----------
+
+    def create_claim_snapshot(self, conversion_rate: float) -> bool:
+        try:
+            # 1. Clear older snapshots
+            self.supabase.table('claim_snapshots').delete().neq('id', 0).execute()
+            
+            # 2. Fetch profiles with connected wallets and points > 0
+            profiles_res = self.supabase.table('profiles').select('telegram_id', 'wallet_address', 'total_points').not_.is_('wallet_address', 'null').gt('total_points', 0).execute()
+            
+            if not profiles_res.data:
+                return True
+                
+            # 3. Compile snapshot list
+            snapshot_data = []
+            for p in profiles_res.data:
+                points = p.get("total_points", 0)
+                tokens = float(points) / conversion_rate
+                snapshot_data.append({
+                    "telegram_id": p["telegram_id"],
+                    "wallet_address": p["wallet_address"],
+                    "points_snap": points,
+                    "tokens_allocated": tokens
+                })
+                
+            # 4. Insert bulk snapshot data
+            res = self.supabase.table('claim_snapshots').insert(snapshot_data).execute()
+            return len(res.data) > 0
+        except Exception as e:
+            logger.error(f"Failed to create claim snapshot in Supabase: {e}")
+            return False
+
+    def get_claim_snapshot(self, telegram_id: int) -> Optional[Dict[str, Any]]:
+        res = self.supabase.table('claim_snapshots').select('*').eq('telegram_id', telegram_id).execute()
+        return res.data[0] if res.data else None
+
+    def claim_tokens(self, telegram_id: int) -> bool:
+        res = self.supabase.table('claim_snapshots').update({
+            "claimed": True,
+            "claimed_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        }).eq('telegram_id', telegram_id).execute()
+        return len(res.data) > 0
+
+    def create_contest(self, title: str, description: str, reward_points: int) -> int:
+        data = {
+            "title": title,
+            "description": description,
+            "reward_points": reward_points,
+            "is_active": True
+        }
+        res = self.supabase.table('contests').insert(data).execute()
+        return res.data[0]["id"] if res.data else 0
+
+    def get_active_contests(self) -> List[Dict[str, Any]]:
+        res = self.supabase.table('contests').select('*').eq('is_active', True).order('created_at', desc=True).execute()
+        return res.data
+
+    def submit_contest(self, contest_id: int, telegram_id: int, submission_link: str) -> bool:
+        try:
+            data = {
+                "contest_id": contest_id,
+                "telegram_id": telegram_id,
+                "submission_link": submission_link,
+                "status": "pending"
+            }
+            res = self.supabase.table('contest_submissions').upsert(data, on_conflict='telegram_id,contest_id').execute()
+            return len(res.data) > 0
+        except Exception as e:
+            logger.error(f"Failed to submit contest in Supabase: {e}")
+            return False
+
+    def get_pending_submissions(self) -> List[Dict[str, Any]]:
+        try:
+            # Query joined tables or manually build relation
+            subs_res = self.supabase.table('contest_submissions').select('*').eq('status', 'pending').execute()
+            if not subs_res.data:
+                return []
+                
+            # Populate joined information dynamically
+            detailed_subs = []
+            for s in subs_res.data:
+                contest_res = self.supabase.table('contests').select('title', 'reward_points').eq('id', s["contest_id"]).execute()
+                profile_res = self.supabase.table('profiles').select('username').eq('telegram_id', s["telegram_id"]).execute()
+                
+                c_title = contest_res.data[0]["title"] if contest_res.data else "Unknown"
+                c_reward = contest_res.data[0]["reward_points"] if contest_res.data else 0
+                u_name = profile_res.data[0]["username"] if profile_res.data else None
+                
+                detailed_subs.append({
+                    "id": s["id"],
+                    "contest_id": s["contest_id"],
+                    "telegram_id": s["telegram_id"],
+                    "submission_link": s["submission_link"],
+                    "status": s["status"],
+                    "title": c_title,
+                    "reward_points": c_reward,
+                    "username": u_name
+                })
+            return detailed_subs
+        except Exception as e:
+            logger.error(f"Failed to fetch pending submissions: {e}")
+            return []
+
+    def approve_submission(self, submission_id: int) -> bool:
+        try:
+            # Fetch submission details
+            sub_res = self.supabase.table('contest_submissions').select('*').eq('id', submission_id).execute()
+            if not sub_res.data or sub_res.data[0]["status"] != "pending":
+                return False
+                
+            sub = sub_res.data[0]
+            telegram_id = sub["telegram_id"]
+            contest_id = sub["contest_id"]
+            
+            # Get reward points from contest
+            contest_res = self.supabase.table('contests').select('reward_points').eq('id', contest_id).execute()
+            reward = contest_res.data[0]["reward_points"] if contest_res.data else 0
+            
+            # Approve submission
+            self.supabase.table('contest_submissions').update({"status": "approved"}).eq('id', submission_id).execute()
+            # Award points to user profile
+            self.add_points(telegram_id, reward)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to approve submission: {e}")
+            return False
+
+    def reject_submission(self, submission_id: int) -> bool:
+        try:
+            res = self.supabase.table('contest_submissions').update({"status": "rejected"}).eq('id', submission_id).execute()
+            return len(res.data) > 0
+        except Exception as e:
+            logger.error(f"Failed to reject submission: {e}")
+            return False
+
 
 # Determine which DB client to instantiate
 if SUPABASE_URL and SUPABASE_SERVICE_KEY:
@@ -503,3 +777,32 @@ async def get_all_users() -> List[int]:
 
 async def clean_database() -> bool:
     return await asyncio.to_thread(_db_impl.clean_database)
+
+# --- EXPANDED SNAPSHOTS & CONTESTS ---
+
+async def create_claim_snapshot(conversion_rate: float) -> bool:
+    return await asyncio.to_thread(_db_impl.create_claim_snapshot, conversion_rate)
+
+async def get_claim_snapshot(telegram_id: int) -> Optional[Dict[str, Any]]:
+    return await asyncio.to_thread(_db_impl.get_claim_snapshot, telegram_id)
+
+async def claim_tokens(telegram_id: int) -> bool:
+    return await asyncio.to_thread(_db_impl.claim_tokens, telegram_id)
+
+async def create_contest(title: str, description: str, reward_points: int) -> int:
+    return await asyncio.to_thread(_db_impl.create_contest, title, description, reward_points)
+
+async def get_active_contests() -> List[Dict[str, Any]]:
+    return await asyncio.to_thread(_db_impl.get_active_contests)
+
+async def submit_contest(contest_id: int, telegram_id: int, submission_link: str) -> bool:
+    return await asyncio.to_thread(_db_impl.submit_contest, contest_id, telegram_id, submission_link)
+
+async def get_pending_submissions() -> List[Dict[str, Any]]:
+    return await asyncio.to_thread(_db_impl.get_pending_submissions)
+
+async def approve_submission(submission_id: int) -> bool:
+    return await asyncio.to_thread(_db_impl.approve_submission, submission_id)
+
+async def reject_submission(submission_id: int) -> bool:
+    return await asyncio.to_thread(_db_impl.reject_submission, submission_id)
