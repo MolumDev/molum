@@ -34,6 +34,7 @@ async def cmd_balance(message: Message, _: Callable[..., str]):
     text = _(
         "profile_text",
         telegram_id=user_id,
+        referral_code=profile.get("referral_code", f"MOL{user_id}"),
         username=username or f"id{user_id}",
         total_points=profile.get("total_points", 0),
         referred_count=referred_count,

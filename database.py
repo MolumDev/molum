@@ -22,81 +22,92 @@ class SQLiteDatabase:
         with self._get_conn() as conn:
             cursor = conn.cursor()
             
-            # Profiles - added first_name TEXT column
+            # Profiles - matching exactly Supabase profiles schema
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS profiles (
-                    telegram_id INTEGER PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    telegram_id INTEGER NOT NULL UNIQUE,
                     username TEXT,
                     first_name TEXT,
+                    last_name TEXT,
+                    total_points INTEGER NOT NULL DEFAULT 0,
+                    referral_count INTEGER NOT NULL DEFAULT 0,
+                    referral_code TEXT UNIQUE,
+                    is_subscribed BOOLEAN NOT NULL DEFAULT 0,
                     wallet_address TEXT,
+                    language_code TEXT NOT NULL DEFAULT 'en',
+                    notify_listing BOOLEAN NOT NULL DEFAULT 0,
+                    avatar_url TEXT,
                     referred_by INTEGER,
-                    total_points INTEGER DEFAULT 0,
-                    subscription_status BOOLEAN DEFAULT 0,
-                    language_code TEXT DEFAULT 'en',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
-            # Referrals
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS referrals (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    referrer_id INTEGER,
-                    referred_id INTEGER,
-                    points_awarded INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(referrer_id, referred_id)
-                )
-            """)
-            
-            # Tasks - added sort_order INTEGER column
+            # Tasks - matching exactly Supabase tasks schema
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS tasks (
-                    task_id TEXT PRIMARY KEY,
-                    description_key TEXT NOT NULL,
-                    points_reward INTEGER DEFAULT 0,
-                    is_active BOOLEAN DEFAULT 1,
-                    sort_order INTEGER DEFAULT 0
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_id TEXT NOT NULL UNIQUE,
+                    title_en TEXT NOT NULL,
+                    title_ru TEXT NOT NULL,
+                    description_en TEXT,
+                    description_ru TEXT,
+                    points INTEGER NOT NULL DEFAULT 0,
+                    link TEXT,
+                    is_active BOOLEAN NOT NULL DEFAULT 1,
+                    icon TEXT DEFAULT 'sparkles',
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    verify_type TEXT NOT NULL DEFAULT 'bot',
+                    verify_chat TEXT,
+                    verify_value INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
-            # User Tasks
+            # User Tasks - matching exactly Supabase user_tasks schema
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS user_tasks (
-                    telegram_id INTEGER,
-                    task_id TEXT,
-                    completed BOOLEAN DEFAULT 0,
-                    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (telegram_id, task_id)
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    telegram_id INTEGER NOT NULL REFERENCES profiles (telegram_id) ON DELETE CASCADE,
+                    task_id TEXT NOT NULL,
+                    completed BOOLEAN NOT NULL DEFAULT 0,
+                    completed_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (telegram_id, task_id)
                 )
             """)
             
             # Settings
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS settings (
-                    key TEXT PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    key TEXT NOT NULL UNIQUE,
                     value TEXT,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
-            # Token Notifications
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS token_notifications (
-                    telegram_id INTEGER PRIMARY KEY,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            
             # Default Settings
-            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_status', 'pre-launch')")
-            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('listing_date', '2026-12-31T23:59:59Z')")
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_status', 'prelaunch')")
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('listing_date', '2026-06-15T18:00:00Z')")
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_symbol', 'MOLUM')")
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_price', '0.0042')")
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_chart_url', 'https://dexscreener.com')")
             
-            # Default Tasks with sort_order
-            cursor.execute("INSERT OR IGNORE INTO tasks (task_id, description_key, points_reward, is_active, sort_order) VALUES ('subscribe', 'task_subscribe_channel', 150, 1, 10)")
-            cursor.execute("INSERT OR IGNORE INTO tasks (task_id, description_key, points_reward, is_active, sort_order) VALUES ('invite_3_friends', 'task_invite_3_friends', 300, 1, 20)")
-            cursor.execute("INSERT OR IGNORE INTO tasks (task_id, description_key, points_reward, is_active, sort_order) VALUES ('connect_wallet', 'task_connect_wallet', 200, 1, 30)")
+            # Default Tasks seed matching exactly the user prompt
+            cursor.execute("""
+                INSERT OR IGNORE INTO tasks (
+                    task_id, title_en, title_ru, description_en, description_ru,
+                    points, link, is_active, icon, sort_order, verify_type, verify_chat, verify_value
+                ) VALUES 
+                ('subscribe', 'Subscribe to Molum channel', 'Подпишитесь на канал Molum', 'Join the official Telegram channel and stay updated.', 'Подпишитесь на официальный Telegram-канал.', 150, 'https://t.me/molum_chain_official', 1, 'subscribe', 1, 'channel', '@molum_chain_official', NULL),
+                ('twitter', 'Follow Molum on X', 'Подпишитесь на Molum в X', 'Follow our X (Twitter) account for announcements.', 'Подпишитесь на наш аккаунт X для новостей.', 100, 'https://x.com/molum', 1, 'twitter', 2, 'bot', NULL, NULL),
+                ('invite_3_friends', 'Invite 3 friends', 'Пригласите 3 друзей', 'Share your referral link and bring 3 friends.', 'Поделитесь реферальной ссылкой и пригласите 3 друзей.', 300, NULL, 1, 'invite', 3, 'referrals', NULL, 3),
+                ('connect_wallet', 'Connect Solana wallet', 'Подключите Solana-кошелёк', 'Link Phantom or Solflare to your profile.', 'Привяжите Phantom или Solflare к профилю.', 200, NULL, 1, 'wallet', 4, 'wallet', NULL, NULL),
+                ('boost', 'Boost the community post', 'Бустните пост сообщества', 'Join the community chat / boost the pinned post.', 'Вступите в чат сообщества / бустните закреплённый пост.', 120, 'https://t.me/molum_chat', 1, 'rocket', 5, 'chat', '@molum_chat', NULL),
+                ('story', 'Share Molum story', 'Поделитесь сторис Molum', 'Post a Telegram story about Molum (verified by bot).', 'Опубликуйте Telegram-сторис о Molum (проверяет бот).', 80, NULL, 1, 'sparkles', 6, 'bot', NULL, NULL)
+            """)
             
             conn.commit()
             logger.info("Local SQLite database initialized successfully.")
@@ -106,12 +117,13 @@ class SQLiteDatabase:
             row = conn.execute("SELECT * FROM profiles WHERE telegram_id = ?", (telegram_id,)).fetchone()
             return dict(row) if row else None
 
-    def create_profile(self, telegram_id: int, username: str = None, first_name: str = None, referred_by: int = None, subscription_status: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
+    def create_profile(self, telegram_id: int, username: str = None, first_name: str = None, last_name: str = None, referred_by: int = None, is_subscribed: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
+        ref_code = f"MOL{telegram_id}"
         with self._get_conn() as conn:
             conn.execute("""
-                INSERT OR IGNORE INTO profiles (telegram_id, username, first_name, referred_by, subscription_status, total_points, language_code)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (telegram_id, username, first_name, referred_by, int(subscription_status), total_points, language_code))
+                INSERT OR IGNORE INTO profiles (telegram_id, username, first_name, last_name, referral_code, referred_by, is_subscribed, total_points, language_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (telegram_id, username, first_name, last_name, ref_code, referred_by, int(is_subscribed), total_points, language_code))
             conn.commit()
             return self.get_profile(telegram_id)
 
@@ -129,7 +141,7 @@ class SQLiteDatabase:
 
     def update_profile_subscription(self, telegram_id: int, status: bool) -> bool:
         with self._get_conn() as conn:
-            cursor = conn.execute("UPDATE profiles SET subscription_status = ?, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?", (int(status), telegram_id))
+            cursor = conn.execute("UPDATE profiles SET is_subscribed = ?, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?", (int(status), telegram_id))
             conn.commit()
             return cursor.rowcount > 0
 
@@ -140,36 +152,28 @@ class SQLiteDatabase:
             profile = self.get_profile(telegram_id)
             return profile["total_points"] if profile else 0
 
-    def get_referral_count(self, telegram_id: int) -> int:
+    def increment_referral_count(self, telegram_id: int) -> bool:
         with self._get_conn() as conn:
-            row = conn.execute("SELECT COUNT(*) as count FROM referrals WHERE referrer_id = ?", (telegram_id,)).fetchone()
-            return row["count"] if row else 0
+            cursor = conn.execute("UPDATE profiles SET referral_count = referral_count + 1, updated_at = CURRENT_TIMESTAMP WHERE telegram_id = ?", (telegram_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_referral_count(self, telegram_id: int) -> int:
+        profile = self.get_profile(telegram_id)
+        return profile.get("referral_count", 0) if profile else 0
 
     def get_referrals(self, telegram_id: int) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:
-            rows = conn.execute("SELECT * FROM referrals WHERE referrer_id = ?", (telegram_id,)).fetchall()
+            rows = conn.execute("SELECT * FROM profiles WHERE referred_by = ?", (telegram_id,)).fetchall()
             return [dict(r) for r in rows]
-
-    def add_referral(self, referrer_id: int, referred_id: int, points_awarded: int) -> bool:
-        try:
-            with self._get_conn() as conn:
-                conn.execute("""
-                    INSERT INTO referrals (referrer_id, referred_id, points_awarded)
-                    VALUES (?, ?, ?)
-                """, (referrer_id, referred_id, points_awarded))
-                conn.commit()
-                return True
-        except sqlite3.IntegrityError:
-            return False
 
     def has_referred(self, referrer_id: int, referred_id: int) -> bool:
         with self._get_conn() as conn:
-            row = conn.execute("SELECT 1 FROM referrals WHERE referrer_id = ? AND referred_id = ?", (referrer_id, referred_id)).fetchone()
+            row = conn.execute("SELECT 1 FROM profiles WHERE referred_by = ? AND telegram_id = ?", (referrer_id, referred_id)).fetchone()
             return row is not None
 
     def get_tasks(self) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:
-            # Added order by sort_order
             rows = conn.execute("SELECT * FROM tasks WHERE is_active = 1 ORDER BY sort_order ASC").fetchall()
             return [dict(r) for r in rows]
 
@@ -193,7 +197,8 @@ class SQLiteDatabase:
                 """, (telegram_id, task_id))
                 conn.commit()
                 return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"Failed to complete SQLite task: {e}")
             return False
 
     def get_setting(self, key: str) -> Optional[str]:
@@ -212,23 +217,19 @@ class SQLiteDatabase:
             return True
 
     def add_token_notification(self, telegram_id: int) -> bool:
-        try:
-            with self._get_conn() as conn:
-                conn.execute("INSERT OR IGNORE INTO token_notifications (telegram_id) VALUES (?)", (telegram_id,))
-                conn.commit()
-                return True
-        except Exception:
-            return False
+        with self._get_conn() as conn:
+            cursor = conn.execute("UPDATE profiles SET notify_listing = 1 WHERE telegram_id = ?", (telegram_id,))
+            conn.commit()
+            return cursor.rowcount > 0
 
     def has_token_notification(self, telegram_id: int) -> bool:
-        with self._get_conn() as conn:
-            row = conn.execute("SELECT 1 FROM token_notifications WHERE telegram_id = ?", (telegram_id,)).fetchone()
-            return row is not None
+        profile = self.get_profile(telegram_id)
+        return bool(profile.get("notify_listing")) if profile else False
 
     def get_admin_stats(self) -> Dict[str, Any]:
         with self._get_conn() as conn:
             total_users = conn.execute("SELECT COUNT(*) as count FROM profiles").fetchone()["count"]
-            total_referrals = conn.execute("SELECT COUNT(*) as count FROM referrals").fetchone()["count"]
+            total_referrals = conn.execute("SELECT SUM(referral_count) as sum FROM profiles").fetchone()["sum"] or 0
             total_points = conn.execute("SELECT SUM(total_points) as sum FROM profiles").fetchone()["sum"] or 0
             return {
                 "total_users": total_users,
@@ -249,8 +250,6 @@ class SQLiteDatabase:
     def clean_database(self) -> bool:
         with self._get_conn() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM token_notifications")
-            cursor.execute("DELETE FROM referrals")
             cursor.execute("DELETE FROM user_tasks")
             cursor.execute("DELETE FROM profiles")
             conn.commit()
@@ -268,16 +267,19 @@ class SupabaseDatabase:
         res = self.supabase.table('profiles').select('*').eq('telegram_id', telegram_id).execute()
         return res.data[0] if res.data else None
 
-    def create_profile(self, telegram_id: int, username: str = None, first_name: str = None, referred_by: int = None, subscription_status: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
+    def create_profile(self, telegram_id: int, username: str = None, first_name: str = None, last_name: str = None, referred_by: int = None, is_subscribed: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
         existing = self.get_profile(telegram_id)
         if existing:
             return existing
+        ref_code = f"MOL{telegram_id}"
         data = {
             "telegram_id": telegram_id,
             "username": username,
             "first_name": first_name,
+            "last_name": last_name,
+            "referral_code": ref_code,
             "referred_by": referred_by,
-            "subscription_status": subscription_status,
+            "is_subscribed": is_subscribed,
             "total_points": total_points,
             "language_code": language_code
         }
@@ -293,7 +295,7 @@ class SupabaseDatabase:
         return len(res.data) > 0
 
     def update_profile_subscription(self, telegram_id: int, status: bool) -> bool:
-        res = self.supabase.table('profiles').update({"subscription_status": status}).eq('telegram_id', telegram_id).execute()
+        res = self.supabase.table('profiles').update({"is_subscribed": status}).eq('telegram_id', telegram_id).execute()
         return len(res.data) > 0
 
     def add_points(self, telegram_id: int, points: int) -> int:
@@ -304,33 +306,27 @@ class SupabaseDatabase:
         res = self.supabase.table('profiles').update({"total_points": new_points}).eq('telegram_id', telegram_id).execute()
         return res.data[0]["total_points"] if res.data else 0
 
+    def increment_referral_count(self, telegram_id: int) -> bool:
+        profile = self.get_profile(telegram_id)
+        if not profile:
+            return False
+        new_count = profile.get("referral_count", 0) + 1
+        res = self.supabase.table('profiles').update({"referral_count": new_count}).eq('telegram_id', telegram_id).execute()
+        return len(res.data) > 0
+
     def get_referral_count(self, telegram_id: int) -> int:
-        res = self.supabase.table('referrals').select('id', count='exact').eq('referrer_id', telegram_id).execute()
-        return res.count if res.count is not None else len(res.data)
+        profile = self.get_profile(telegram_id)
+        return profile.get("referral_count", 0) if profile else 0
 
     def get_referrals(self, telegram_id: int) -> List[Dict[str, Any]]:
-        res = self.supabase.table('referrals').select('*').eq('referrer_id', telegram_id).execute()
+        res = self.supabase.table('profiles').select('*').eq('referred_by', telegram_id).execute()
         return res.data
 
-    def add_referral(self, referrer_id: int, referred_id: int, points_awarded: int) -> bool:
-        try:
-            data = {
-                "referrer_id": referrer_id,
-                "referred_id": referred_id,
-                "points_awarded": points_awarded
-            }
-            res = self.supabase.table('referrals').insert(data).execute()
-            return len(res.data) > 0
-        except Exception as e:
-            logger.error(f"Error adding referral: {e}")
-            return False
-
     def has_referred(self, referrer_id: int, referred_id: int) -> bool:
-        res = self.supabase.table('referrals').select('*').eq('referrer_id', referrer_id).eq('referred_id', referred_id).execute()
+        res = self.supabase.table('profiles').select('*').eq('referred_by', referrer_id).eq('telegram_id', referred_id).execute()
         return len(res.data) > 0
 
     def get_tasks(self) -> List[Dict[str, Any]]:
-        # Added ordering by sort_order
         res = self.supabase.table('tasks').select('*').eq('is_active', True).order('sort_order', desc=False).execute()
         return res.data
 
@@ -343,7 +339,6 @@ class SupabaseDatabase:
         return res.data[0] if res.data else None
 
     def complete_user_task(self, telegram_id: int, task_id: str) -> bool:
-        # Check if already completed
         status = self.get_user_task_status(telegram_id, task_id)
         if status and status.get("completed"):
             return True
@@ -371,27 +366,20 @@ class SupabaseDatabase:
         return len(res.data) > 0
 
     def add_token_notification(self, telegram_id: int) -> bool:
-        try:
-            data = {"telegram_id": telegram_id}
-            res = self.supabase.table('token_notifications').upsert(data).execute()
-            return len(res.data) > 0
-        except Exception as e:
-            logger.error(f"Error adding notification: {e}")
-            return False
+        res = self.supabase.table('profiles').update({"notify_listing": True}).eq('telegram_id', telegram_id).execute()
+        return len(res.data) > 0
 
     def has_token_notification(self, telegram_id: int) -> bool:
-        res = self.supabase.table('token_notifications').select('*').eq('telegram_id', telegram_id).execute()
-        return len(res.data) > 0
+        profile = self.get_profile(telegram_id)
+        return bool(profile.get("notify_listing")) if profile else False
 
     def get_admin_stats(self) -> Dict[str, Any]:
         profiles_res = self.supabase.table('profiles').select('telegram_id', count='exact').execute()
         total_users = profiles_res.count if profiles_res.count is not None else len(profiles_res.data)
         
-        referrals_res = self.supabase.table('referrals').select('id', count='exact').execute()
-        total_referrals = referrals_res.count if referrals_res.count is not None else len(referrals_res.data)
-        
-        points_res = self.supabase.table('profiles').select('total_points').execute()
+        points_res = self.supabase.table('profiles').select('total_points', 'referral_count').execute()
         total_points = sum(r.get("total_points", 0) for r in points_res.data) if points_res.data else 0
+        total_referrals = sum(r.get("referral_count", 0) for r in points_res.data) if points_res.data else 0
         
         return {
             "total_users": total_users,
@@ -415,10 +403,8 @@ class SupabaseDatabase:
         except Exception as e:
             logger.error(f"Failed to clean Supabase database via RPC: {e}")
             try:
-                self.supabase.table('token_notifications').delete().neq('telegram_id', 0).execute()
-                self.supabase.table('referrals').delete().neq('id', 0).execute()
-                self.supabase.table('user_tasks').delete().neq('telegram_id', 0).execute()
-                self.supabase.table('profiles').delete().neq('telegram_id', 0).execute()
+                self.supabase.table('user_tasks').delete().neq('id', 0).execute()
+                self.supabase.table('profiles').delete().neq('id', 0).execute()
                 return True
             except Exception as ex:
                 logger.error(f"Fallback manual clean failed too: {ex}")
@@ -441,8 +427,8 @@ else:
 async def get_profile(telegram_id: int) -> Optional[Dict[str, Any]]:
     return await asyncio.to_thread(_db_impl.get_profile, telegram_id)
 
-async def create_profile(telegram_id: int, username: str = None, first_name: str = None, referred_by: int = None, subscription_status: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
-    return await asyncio.to_thread(_db_impl.create_profile, telegram_id, username, first_name, referred_by, subscription_status, total_points, language_code)
+async def create_profile(telegram_id: int, username: str = None, first_name: str = None, last_name: str = None, referred_by: int = None, is_subscribed: bool = False, total_points: int = 0, language_code: str = 'en') -> Dict[str, Any]:
+    return await asyncio.to_thread(_db_impl.create_profile, telegram_id, username, first_name, last_name, referred_by, is_subscribed, total_points, language_code)
 
 async def update_profile_language(telegram_id: int, lang_code: str) -> bool:
     return await asyncio.to_thread(_db_impl.update_profile_language, telegram_id, lang_code)
@@ -456,14 +442,14 @@ async def update_profile_subscription(telegram_id: int, status: bool) -> bool:
 async def add_points(telegram_id: int, points: int) -> int:
     return await asyncio.to_thread(_db_impl.add_points, telegram_id, points)
 
+async def increment_referral_count(telegram_id: int) -> bool:
+    return await asyncio.to_thread(_db_impl.increment_referral_count, telegram_id)
+
 async def get_referral_count(telegram_id: int) -> int:
     return await asyncio.to_thread(_db_impl.get_referral_count, telegram_id)
 
 async def get_referrals(telegram_id: int) -> List[Dict[str, Any]]:
     return await asyncio.to_thread(_db_impl.get_referrals, telegram_id)
-
-async def add_referral(referrer_id: int, referred_id: int, points_awarded: int) -> bool:
-    return await asyncio.to_thread(_db_impl.add_referral, referrer_id, referred_id, points_awarded)
 
 async def has_referred(referrer_id: int, referred_id: int) -> bool:
     return await asyncio.to_thread(_db_impl.has_referred, referrer_id, referred_id)

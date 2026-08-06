@@ -6,26 +6,18 @@ from aiogram.types import Message, CallbackQuery
 import database
 import keyboards
 from config import CHANNEL_USERNAME
+from handlers.tasks import check_chat_membership
 
 logger = logging.getLogger("MolumBot.StartHandler")
 
 router = Router()
-
-async def check_channel_subscription(bot: Bot, user_id: int) -> bool:
-    """Verifies if the user is subscribed to the official channel."""
-    try:
-        member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        # Allowed statuses: creator, administrator, member, restricted
-        return member.status in ["creator", "administrator", "member", "restricted"]
-    except Exception as e:
-        logger.warning(f"Could not verify subscription for user {user_id} on {CHANNEL_USERNAME}: {e}")
-        return False
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, _: Callable[..., str], bot: Bot):
     user_id = message.from_user.id
     username = message.from_user.username
     first_name = message.from_user.first_name
+    last_name = message.from_user.last_name
     
     # Use first_name or username for personal greeting, fallback to "friend"
     user_display = first_name or username or "friend"
@@ -33,20 +25,26 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
     # Fetch existing profile
     profile = await database.get_profile(user_id)
     
-    # Process potential referral arguments (start=ref_12345)
+    # Process potential referral arguments (start=ref_12345 or start=ref_MOL12345)
     referred_by = None
     if command.args and command.args.startswith("ref_"):
         try:
-            ref_id_str = command.args.split("_")[1]
-            referred_by = int(ref_id_str)
+            ref_payload = command.args.split("_")[1]
+            if ref_payload.startswith("MOL"):
+                # Referral payload is code: e.g. MOL100001
+                # Extrapolate numeric ID from MOL<id> if formatted as MOL<telegram_id>
+                referred_by = int(ref_payload.replace("MOL", ""))
+            else:
+                referred_by = int(ref_payload)
+                
             # Self-referral prevention
             if referred_by == user_id:
                 referred_by = None
         except (ValueError, IndexError):
             pass
 
-    # Check actual subscription status
-    is_subscribed = await check_channel_subscription(bot, user_id)
+    # Check actual subscription status on the official channel
+    is_subscribed = await check_chat_membership(bot, user_id, CHANNEL_USERNAME)
     
     if is_subscribed:
         if not profile:
@@ -55,19 +53,21 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
                 telegram_id=user_id,
                 username=username,
                 first_name=first_name,
+                last_name=last_name,
                 referred_by=referred_by,
-                subscription_status=True,
-                total_points=100
+                is_subscribed=True,
+                total_points=100,
+                language_code="en" # English first as requested!
             )
             # Mark the subscription task as completed
             await database.complete_user_task(user_id, "subscribe")
             
-            # Award referrer 50 points
+            # Award referrer 50 points and increment referral count
             if referred_by:
                 already_referred = await database.has_referred(referred_by, user_id)
                 if not already_referred:
                     await database.add_points(referred_by, 50)
-                    await database.add_referral(referred_by, user_id, 50)
+                    await database.increment_referral_count(referred_by)
                     
                     # Notify referrer in their language
                     ref_profile = await database.get_profile(referred_by)
@@ -77,15 +77,14 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
                     ref_msg = i18n_manager.get(
                         "referral_notification_referrer",
                         lang=ref_lang,
-                        referee_username=username or first_name or f"id{user_id}"
+                        referee_username=first_name or username or f"id{user_id}"
                     )
                     try:
-                        await bot.send_message(chat_id=referred_by, text=ref_msg)
+                        await bot.send_message(chat_id=referred_by, text=ref_msg, parse_mode="HTML")
                     except Exception as e:
                         logger.warning(f"Failed to notify referrer {referred_by}: {e}")
                         
-            # Subscribed first time: Show greeting & sticker pack
-            lang = profile.get("language_code", "en")
+            lang = "en"
             welcome_text = _("welcome_subscribed", username=user_display)
             sticker_text = _("sticker_pack_message")
             kb = keyboards.get_main_menu_keyboard(_, lang=lang)
@@ -112,9 +111,11 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
                 telegram_id=user_id,
                 username=username,
                 first_name=first_name,
+                last_name=last_name,
                 referred_by=referred_by,
-                subscription_status=False,
-                total_points=0
+                is_subscribed=False,
+                total_points=0,
+                language_code="en" # English first as requested!
             )
             
         lang = profile.get("language_code", "en")
@@ -131,13 +132,13 @@ async def cb_check_subscription(callback: CallbackQuery, _: Callable[..., str], 
     
     user_display = first_name or username or "friend"
     
-    is_subscribed = await check_channel_subscription(bot, user_id)
+    is_subscribed = await check_chat_membership(bot, user_id, CHANNEL_USERNAME)
     profile = await database.get_profile(user_id)
     lang = profile.get("language_code", "en") if profile else "en"
     
     if is_subscribed:
         first_time_sub = False
-        if profile and not profile.get("subscription_status"):
+        if profile and not profile.get("is_subscribed"):
             first_time_sub = True
             # Update DB subscription status
             await database.update_profile_subscription(user_id, True)
@@ -152,7 +153,7 @@ async def cb_check_subscription(callback: CallbackQuery, _: Callable[..., str], 
                 already_referred = await database.has_referred(referred_by, user_id)
                 if not already_referred:
                     await database.add_points(referred_by, 50)
-                    await database.add_referral(referred_by, user_id, 50)
+                    await database.increment_referral_count(referred_by)
                     
                     # Notify referrer
                     ref_profile = await database.get_profile(referred_by)
@@ -162,10 +163,10 @@ async def cb_check_subscription(callback: CallbackQuery, _: Callable[..., str], 
                     ref_msg = i18n_manager.get(
                         "referral_notification_referrer",
                         lang=ref_lang,
-                        referee_username=username or first_name or f"id{user_id}"
+                        referee_username=first_name or username or f"id{user_id}"
                     )
                     try:
-                        await bot.send_message(chat_id=referred_by, text=ref_msg)
+                        await bot.send_message(chat_id=referred_by, text=ref_msg, parse_mode="HTML")
                     except Exception as e:
                         logger.warning(f"Could not notify referrer {referred_by}: {e}")
                         

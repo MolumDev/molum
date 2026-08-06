@@ -120,18 +120,17 @@ def get_tasks_keyboard(_, tasks: list, completed_task_ids: set, lang: str = "en"
     
     for task in tasks:
         task_id = task["task_id"]
-        reward = task["points_reward"]
-        desc_key = task["description_key"]
-        description = _(desc_key)
+        reward = task["points"]
+        title = task["title_ru"] if lang == "ru" else task["title_en"]
         
         if task_id in completed_task_ids:
             # Completed task: show ✅
-            text = f"✅ {description} (+{reward})"
+            text = f"✅ {title} (+{reward})"
             builder.button(text=text, callback_data=f"task_checked_completed_{task_id}")
         else:
             # Incomplete: show checking button
-            text = f"🔍 Check: {description} (+{reward})"
-            builder.button(text=text, callback_data=f"check_task_{task_id}")
+            btn_check_label = f"🔍 Check: {title} (+{reward})" if lang == "en" else f"🔍 Проверить: {title} (+{reward})"
+            builder.button(text=btn_check_label, callback_data=f"check_task_{task_id}")
             
     builder.button(text=get_delete_button(_, lang).text, callback_data=get_delete_button(_, lang).callback_data)
     builder.adjust(*([1] * (len(tasks) + 1)))

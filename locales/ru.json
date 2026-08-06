@@ -11,7 +11,7 @@
   "btn_wallet": "💼 Кошелёк",
   "btn_token": "🚀 Статус токена",
   "btn_language": "🌐 Язык",
-  "profile_text": "🦊 <b>Ваш кибер-профиль Molum</b> 🧡\n\n🔸 <b>Telegram ID:</b> <code>{telegram_id}</code>\n🔸 <b>Имя пользователя:</b> @{username}\n\n🔥 <b>Баланс:</b> <code>{total_points} Баллов</code>\n👥 <b>Приглашено друзей:</b> <code>{referred_count}</code>\n💼 <b>Solana Кошелёк:</b> <code>{wallet_address}</code>",
+  "profile_text": "🦊 <b>Ваш кибер-профиль Molum</b> 🧡\n\n🔸 <b>Telegram ID:</b> <code>{telegram_id}</code>\n🔸 <b>Реферальный код:</b> <code>{referral_code}</code>\n🔸 <b>Имя пользователя:</b> @{username}\n\n🔥 <b>Баланс:</b> <code>{total_points} Баллов</code>\n👥 <b>Приглашено друзей:</b> <code>{referred_count}</code>\n💼 <b>Solana Кошелёк:</b> <code>{wallet_address}</code>",
   "referral_text": "👥 <b>Реферальный центр Molum</b> 🧡\n\n🔸 Приглашайте друзей в стаю и получайте <b>+50 Molum Points</b> за каждого активного друга, который присоединится и подпишется!\n🔸 Ваш друг также получит стартовый бонус <b>+100 Баллов</b>.\n\n🔗 <b>Ваша реферальная ссылка:</b>\n<code>{referral_link}</code>\n\n🔥 Поделитесь этой ссылкой, чтобы начать зарабатывать прямо сейчас!",
   "leaderboard_text": "📈 <b>Глобальная таблица лидеров Molum</b> 🏆\n\n🔶 Соревнуйтесь с другими лисами, поднимайтесь в таблице лидеров и получайте эксклюзивные награды!\n\n📱 Нажмите кнопку ниже, чтобы открыть таблицу лидеров в нашем Mini App!",
   "tasks_title": "🎯 <b>Задания Molum Cyber</b> 🔥\n\n🔶 Выполняйте активные задания, чтобы накопить больше баллов. Нажмите на задание для проверки статуса!",

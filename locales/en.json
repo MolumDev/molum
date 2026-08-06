@@ -11,7 +11,7 @@
   "btn_wallet": "💼 Wallet",
   "btn_token": "🚀 Token Status",
   "btn_language": "🌐 Language",
-  "profile_text": "🦊 <b>Your Molum Cyber Profile</b> 🧡\n\n🔸 <b>Telegram ID:</b> <code>{telegram_id}</code>\n🔸 <b>Username:</b> @{username}\n\n🔥 <b>Balance:</b> <code>{total_points} Points</code>\n👥 <b>Referred Friends:</b> <code>{referred_count}</code>\n💼 <b>Solana Wallet:</b> <code>{wallet_address}</code>",
+  "profile_text": "🦊 <b>Your Molum Cyber Profile</b> 🧡\n\n🔸 <b>Telegram ID:</b> <code>{telegram_id}</code>\n🔸 <b>Referral Code:</b> <code>{referral_code}</code>\n🔸 <b>Username:</b> @{username}\n\n🔥 <b>Balance:</b> <code>{total_points} Points</code>\n👥 <b>Referred Friends:</b> <code>{referred_count}</code>\n💼 <b>Solana Wallet:</b> <code>{wallet_address}</code>",
   "referral_text": "👥 <b>Molum Referral Hub</b> 🧡\n\n🔸 Invite your friends to join the pack and earn <b>+50 Molum Points</b> for every active friend who joins and subscribes!\n🔸 Your friend also gets a starting bonus of <b>+100 Points</b>.\n\n🔗 <b>Your Personal Referral Link:</b>\n<code>{referral_link}</code>\n\n🔥 Share this link to start earning now!",
   "leaderboard_text": "📈 <b>Molum Global Leaderboard</b> 🏆\n\n🔶 Compete with other foxes, climb the leaderboards, and secure your exclusive rewards!\n\n📱 Click the button below to view the live leaderboard in our Mini App!",
   "tasks_title": "🎯 <b>Molum Cyber Tasks</b> 🔥\n\n🔶 Complete these active tasks to stack up more points. Click check when you are ready!",
