@@ -133,7 +133,7 @@ class SQLiteDatabase:
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('listing_date', '2026-06-15T18:00:00Z')")
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_symbol', 'MOLUM')")
             cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_price', '0.0042')")
-            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_chart_url', 'https://dexscreener.com')")
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('token_chart_url', 'https://pump.fun')")
             
             # Default Tasks seed
             cursor.execute("""
@@ -297,6 +297,11 @@ class SQLiteDatabase:
             cursor.execute("DELETE FROM profiles")
             conn.commit()
             return True
+
+    def get_users_to_notify(self) -> List[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            rows = conn.execute("SELECT telegram_id, language_code FROM profiles WHERE notify_listing = 1").fetchall()
+            return [dict(r) for r in rows]
 
     # ---------- EXPANDED SNAPSHOT & CONTESTS (SQLite) ----------
     
@@ -563,6 +568,10 @@ class SupabaseDatabase:
                 logger.error(f"Fallback manual clean failed too: {ex}")
                 return False
 
+    def get_users_to_notify(self) -> List[Dict[str, Any]]:
+        res = self.supabase.table('profiles').select('telegram_id', 'language_code').eq('notify_listing', True).execute()
+        return res.data if res.data else []
+
     # ---------- EXPANDED SNAPSHOT & CONTESTS (Supabase) ----------
 
     def create_claim_snapshot(self, conversion_rate: float) -> bool:
@@ -777,6 +786,9 @@ async def get_all_users() -> List[int]:
 
 async def clean_database() -> bool:
     return await asyncio.to_thread(_db_impl.clean_database)
+
+async def get_users_to_notify() -> List[Dict[str, Any]]:
+    return await asyncio.to_thread(_db_impl.get_users_to_notify)
 
 # --- EXPANDED SNAPSHOTS & CONTESTS ---
 

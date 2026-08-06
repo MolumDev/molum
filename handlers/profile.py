@@ -100,8 +100,12 @@ async def cmd_wallet(message: Message, _: Callable[..., str]):
         profile = await database.create_profile(telegram_id=user_id, username=username, first_name=message.from_user.first_name)
         
     lang = profile.get("language_code", "en")
-    wallet_address = profile.get("wallet_address") or _("no_wallet")
+    wallet_address = profile.get("wallet_address")
     
-    text = _("wallet_title", wallet_address=wallet_address)
+    if wallet_address:
+        text = _("wallet_title_connected", wallet_address=wallet_address)
+    else:
+        text = _("wallet_title_unconnected")
+        
     kb = keyboards.get_wallet_keyboard(_, user_id=user_id, lang=lang)
     await message.answer(text, reply_markup=kb, parse_mode="HTML")

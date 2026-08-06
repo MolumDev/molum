@@ -65,7 +65,7 @@ async def cmd_token(message: Message, _: Callable[..., str]):
     else:
         # Token is LIVE!
         price = await database.get_setting("token_price") or "0.0042"
-        chart_url = await database.get_setting("token_chart_url") or "https://dexscreener.com"
+        chart_url = await database.get_setting("token_chart_url") or "https://pump.fun"
         
         text = _(
             "token_title_live",

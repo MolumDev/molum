@@ -226,14 +226,16 @@ async def cb_admin_token_prelaunch(callback: CallbackQuery, _: Callable[..., str
         logger.debug(f"Failed to update token menu: {e}")
 
 @router.callback_query(F.data == "admin_token_live", IsAdmin())
-async def cb_admin_token_live(callback: CallbackQuery, _: Callable[..., str]):
+async def cb_admin_token_live(callback: CallbackQuery, _: Callable[..., str], bot: Bot):
     await database.update_setting("token_status", "live")
-    price = await database.get_setting("token_price")
-    if not price:
-        await database.update_setting("token_price", "0.0042")
-        await database.update_setting("token_chart_url", "https://dexscreener.com")
+    price = await database.get_setting("token_price") or "0.0042"
+    chart_url = await database.get_setting("token_chart_url") or "https://pump.fun"
         
     await callback.answer(_("token_status_changed", status="live"), show_alert=True)
+    
+    # Trigger background task to alert subscribed users
+    import asyncio
+    asyncio.create_task(broadcast_launch_notifications(bot, price, chart_url))
     
     kb = keyboards.get_admin_token_keyboard(_)
     try:
@@ -529,3 +531,46 @@ async def cmd_cancel(message: Message, state: FSMContext, _: Callable[..., str])
         return
     await state.clear()
     await message.answer("❌ FSM Action cancelled. / Действие отменено.")
+
+async def broadcast_launch_notifications(bot: Bot, price: str, chart_url: str):
+    logger.info("Starting background task: broadcast_launch_notifications")
+    try:
+        users = await database.get_users_to_notify()
+        if not users:
+            logger.info("No users to notify about token launch.")
+            return
+            
+        logger.info(f"Found {len(users)} users to notify about token launch.")
+        from middlewares.i18n import i18n_manager
+        
+        success_count = 0
+        failed_count = 0
+        
+        for u in users:
+            uid = u["telegram_id"]
+            lang = u["language_code"] or "en"
+            
+            # Format localized alert
+            text = i18n_manager.get("token_title_live", lang=lang, price=price, chart_url=chart_url)
+            
+            # Construct inline keyboard
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            builder = InlineKeyboardBuilder()
+            btn_chart_label = "📈 Trade on pump.fun" if lang == "en" else "📈 Торговать на pump.fun"
+            btn_del_label = "❌ Delete" if lang == "en" else "❌ Удалить"
+            
+            builder.button(text=btn_chart_label, url=chart_url)
+            builder.button(text=btn_del_label, callback_data="delete_msg")
+            builder.adjust(1, 1)
+            kb = builder.as_markup()
+            
+            try:
+                await bot.send_message(chat_id=uid, text=text, reply_markup=kb, parse_mode="HTML")
+                success_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to notify user {uid}: {e}")
+                failed_count += 1
+                
+        logger.info(f"Launch notifications broadcast complete. Success: {success_count}, Failed: {failed_count}")
+    except Exception as err:
+        logger.error(f"Error executing launch notifications task: {err}")

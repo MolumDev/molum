@@ -97,7 +97,7 @@ def get_token_prelaunch_keyboard(_, lang: str = "en") -> InlineKeyboardMarkup:
 def get_token_live_keyboard(_, chart_url: str, lang: str = "en") -> InlineKeyboardMarkup:
     """Token live keyboard."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="📈 DexScreener Chart" if lang == "en" else "📈 График DexScreener", url=chart_url)
+    builder.button(text="📈 Trade on pump.fun" if lang == "en" else "📈 Торговать на pump.fun", url=chart_url)
     builder.button(text=get_delete_button(_, lang).text, callback_data=get_delete_button(_, lang).callback_data)
     builder.adjust(1, 1)
     return builder.as_markup()
