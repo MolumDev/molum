@@ -60,7 +60,7 @@ async def cmd_token(message: Message, _: Callable[..., str]):
             listing_date=listing_datetime.strftime("%Y-%m-%d %H:%M:%S UTC")
         )
         kb = keyboards.get_token_prelaunch_keyboard(_, lang=lang)
-        await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
         
     else:
         # Token is LIVE!
@@ -73,7 +73,7 @@ async def cmd_token(message: Message, _: Callable[..., str]):
             chart_url=chart_url
         )
         kb = keyboards.get_token_live_keyboard(_, chart_url=chart_url, lang=lang)
-        await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.callback_query(F.data == "notify_listing")

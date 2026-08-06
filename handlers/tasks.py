@@ -48,7 +48,7 @@ async def cmd_tasks(message: Message, _: Callable[..., str]):
     lang = profile.get("language_code", "en")
     
     text, kb = await render_tasks_message(user_id, _, lang)
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("check_task_"))
@@ -114,7 +114,7 @@ async def cb_check_task(callback: CallbackQuery, _: Callable[..., str], bot: Bot
         # Update/Re-render the tasks message
         try:
             text, kb = await render_tasks_message(user_id, _, lang)
-            await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+            await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
         except Exception as e:
             logger.debug(f"Failed to edit tasks message: {e}")
     else:

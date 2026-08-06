@@ -38,7 +38,10 @@ ADMIN_IDS = []
 if admin_ids_raw:
     for aid in admin_ids_raw.split(","):
         try:
-            ADMIN_IDS.append(int(aid.strip()))
+            # Strip whitespace and any quotes (common env-file issue)
+            clean_aid = aid.strip().replace('"', '').replace("'", "")
+            if clean_aid:
+                ADMIN_IDS.append(int(clean_aid))
         except ValueError:
             pass
 

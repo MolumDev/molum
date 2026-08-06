@@ -89,8 +89,8 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
             sticker_text = _("sticker_pack_message")
             kb = keyboards.get_main_menu_keyboard(_, lang=lang)
             
-            await message.answer(welcome_text, parse_mode="Markdown")
-            await message.answer(sticker_text, reply_markup=kb, parse_mode="Markdown")
+            await message.answer(welcome_text, parse_mode="HTML")
+            await message.answer(sticker_text, reply_markup=kb, parse_mode="HTML")
         else:
             # Already registered, greeting back
             await database.update_profile_subscription(user_id, True)
@@ -101,8 +101,8 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
             sticker_text = _("sticker_pack_message")
             kb = keyboards.get_main_menu_keyboard(_, lang=lang)
             
-            await message.answer(welcome_back_text, parse_mode="Markdown")
-            await message.answer(sticker_text, reply_markup=kb, parse_mode="Markdown")
+            await message.answer(welcome_back_text, parse_mode="HTML")
+            await message.answer(sticker_text, reply_markup=kb, parse_mode="HTML")
     else:
         # Not subscribed yet
         if not profile:
@@ -118,7 +118,7 @@ async def cmd_start(message: Message, command: CommandObject, _: Callable[..., s
         lang = profile.get("language_code", "en")
         text = _("welcome_not_subscribed", username=user_display)
         kb = keyboards.get_subscription_keyboard(_, lang=lang)
-        await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.callback_query(F.data == "check_subscription")
@@ -177,8 +177,8 @@ async def cb_check_subscription(callback: CallbackQuery, _: Callable[..., str], 
         sticker_text = _("sticker_pack_message")
         kb = keyboards.get_main_menu_keyboard(_, lang=lang)
         
-        await bot.send_message(chat_id=user_id, text=welcome_text, parse_mode="Markdown")
-        await bot.send_message(chat_id=user_id, text=sticker_text, reply_markup=kb, parse_mode="Markdown")
+        await bot.send_message(chat_id=user_id, text=welcome_text, parse_mode="HTML")
+        await bot.send_message(chat_id=user_id, text=sticker_text, reply_markup=kb, parse_mode="HTML")
     else:
         # Failed check
         await callback.answer(_("task_check_failed"), show_alert=True)

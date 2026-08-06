@@ -34,10 +34,10 @@ def main():
         logger.critical("BOT_TOKEN is missing! Please set it in .env file before running the bot.")
         return
 
-    # Initialize bot with default Markdown parse mode
+    # Initialize bot with default HTML parse mode
     bot = Bot(
         token=config.BOT_TOKEN,
-        default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
     
     # Initialize dispatcher

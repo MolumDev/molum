@@ -30,7 +30,7 @@ class IsAdmin(Filter):
 async def cmd_admin(message: Message, _: Callable[..., str]):
     text = _("admin_panel_title")
     kb = keyboards.get_admin_main_keyboard(_)
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 @router.message(Command("admin"))
 async def cmd_admin_denied(message: Message, _: Callable[..., str]):
@@ -43,7 +43,7 @@ async def cb_admin_back(callback: CallbackQuery, _: Callable[..., str]):
     text = _("admin_panel_title")
     kb = keyboards.get_admin_main_keyboard(_)
     try:
-        await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to edit admin menu: {e}")
     await callback.answer()
@@ -65,7 +65,7 @@ async def cb_admin_stats(callback: CallbackQuery, _: Callable[..., str]):
     builder.button(text=_("btn_cancel"), callback_data="admin_panel_back")
     
     try:
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to show admin stats: {e}")
     await callback.answer()
@@ -95,7 +95,7 @@ async def cb_admin_view_users(callback: CallbackQuery, _: Callable[..., str]):
     builder.button(text=_("btn_cancel"), callback_data="admin_panel_back")
     
     try:
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to view users: {e}")
     await callback.answer()
@@ -114,7 +114,7 @@ async def cb_admin_manual_points(callback: CallbackQuery, _: Callable[..., str],
     await state.update_data(prompt_msg_id=callback.message.message_id)
     
     try:
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to prompt manual points: {e}")
     await callback.answer()
@@ -142,12 +142,12 @@ async def process_manual_points(message: Message, state: FSMContext, _: Callable
                     old_points=old_points,
                     new_points=new_points
                 )
-                await message.answer(success_text, parse_mode="Markdown")
+                await message.answer(success_text, parse_mode="HTML")
                 await state.clear()
                 
                 # Show main admin menu again
                 kb = keyboards.get_admin_main_keyboard(_)
-                await message.answer(_("admin_panel_title"), reply_markup=kb, parse_mode="Markdown")
+                await message.answer(_("admin_panel_title"), reply_markup=kb, parse_mode="HTML")
                 return
         except ValueError:
             pass
@@ -167,7 +167,7 @@ async def cb_admin_broadcast(callback: CallbackQuery, _: Callable[..., str], sta
     await state.set_state(AdminStates.waiting_for_broadcast_text)
     
     try:
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to prompt broadcast: {e}")
     await callback.answer()
@@ -179,7 +179,7 @@ async def process_admin_broadcast(message: Message, state: FSMContext, _: Callab
     if broadcast_text.strip() == "/cancel":
         await state.clear()
         kb = keyboards.get_admin_main_keyboard(_)
-        await message.answer(_("admin_panel_title"), reply_markup=kb, parse_mode="Markdown")
+        await message.answer(_("admin_panel_title"), reply_markup=kb, parse_mode="HTML")
         return
         
     await message.answer("📢 Processing broadcast... Please wait.")
@@ -200,11 +200,11 @@ async def process_admin_broadcast(message: Message, state: FSMContext, _: Callab
             failed_count += 1
             
     summary = _("broadcast_success", success=success_count, failed=failed_count)
-    await message.answer(summary, parse_mode="Markdown")
+    await message.answer(summary, parse_mode="HTML")
     
     # Return to admin panel
     kb = keyboards.get_admin_main_keyboard(_)
-    await message.answer(_("admin_panel_title"), reply_markup=kb, parse_mode="Markdown")
+    await message.answer(_("admin_panel_title"), reply_markup=kb, parse_mode="HTML")
 
 # --- TOKEN SETTINGS MENU ---
 @router.callback_query(F.data == "admin_change_token", IsAdmin())
@@ -212,7 +212,7 @@ async def cb_admin_change_token(callback: CallbackQuery, _: Callable[..., str]):
     text = "🚀 **Manage Token Settings**\nUpdate token launch status or reschedule the listing countdown date."
     kb = keyboards.get_admin_token_keyboard(_)
     try:
-        await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to show token settings: {e}")
     await callback.answer()
@@ -225,7 +225,7 @@ async def cb_admin_token_prelaunch(callback: CallbackQuery, _: Callable[..., str
     # Return to token settings menu
     kb = keyboards.get_admin_token_keyboard(_)
     try:
-        await callback.message.edit_text("🚀 **Manage Token Settings**\nUpdate token launch status or reschedule the listing countdown date.", reply_markup=kb, parse_mode="Markdown")
+        await callback.message.edit_text("🚀 **Manage Token Settings**\nUpdate token launch status or reschedule the listing countdown date.", reply_markup=kb, parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to update token menu: {e}")
 
@@ -243,7 +243,7 @@ async def cb_admin_token_live(callback: CallbackQuery, _: Callable[..., str]):
     # Return to token settings menu
     kb = keyboards.get_admin_token_keyboard(_)
     try:
-        await callback.message.edit_text("🚀 **Manage Token Settings**\nUpdate token launch status or reschedule the listing countdown date.", reply_markup=kb, parse_mode="Markdown")
+        await callback.message.edit_text("🚀 **Manage Token Settings**\nUpdate token launch status or reschedule the listing countdown date.", reply_markup=kb, parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to update token menu: {e}")
 
@@ -258,7 +258,7 @@ async def cb_admin_token_listing_date(callback: CallbackQuery, _: Callable[..., 
     await state.set_state(AdminStates.waiting_for_listing_date)
     
     try:
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to prompt listing date: {e}")
     await callback.answer()
@@ -270,7 +270,7 @@ async def process_listing_date(message: Message, state: FSMContext, _: Callable[
     if date_text == "/cancel" or date_text.lower() == "cancel":
         await state.clear()
         kb = keyboards.get_admin_token_keyboard(_)
-        await message.answer("🚀 **Manage Token Settings**", reply_markup=kb, parse_mode="Markdown")
+        await message.answer("🚀 **Manage Token Settings**", reply_markup=kb, parse_mode="HTML")
         return
         
     # Simple validation check: ISO 8601 parsing check
@@ -281,12 +281,12 @@ async def process_listing_date(message: Message, state: FSMContext, _: Callable[
         
         # Save to database settings
         await database.update_setting("listing_date", date_text)
-        await message.answer(_("listing_date_updated", date=date_text), parse_mode="Markdown")
+        await message.answer(_("listing_date_updated", date=date_text), parse_mode="HTML")
         await state.clear()
         
         # Return to main admin panel
         kb = keyboards.get_admin_main_keyboard(_)
-        await message.answer(_("admin_panel_title"), reply_markup=kb, parse_mode="Markdown")
+        await message.answer(_("admin_panel_title"), reply_markup=kb, parse_mode="HTML")
     except ValueError:
         await message.answer(_("invalid_date_format"))
 
@@ -296,7 +296,7 @@ async def cb_admin_clean_db_confirm(callback: CallbackQuery, _: Callable[..., st
     text = "⚠️ **Database Cleanup Confirmation**\n\nAre you absolutely sure you want to clean the database?\nThis will **TRUNCATE CASCADE** all user profiles, referrals, notifications, and reset balances!\n\nThis action is **PERMANENT** and cannot be undone."
     kb = keyboards.get_admin_clean_confirm_keyboard(_)
     try:
-        await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to prompt clean confirmation: {e}")
     await callback.answer()
@@ -315,7 +315,7 @@ async def cb_admin_clean_db_yes(callback: CallbackQuery, _: Callable[..., str]):
     builder.button(text="OK", callback_data="admin_panel_back")
     
     try:
-        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to display clean success: {e}")
     await callback.answer()
@@ -325,7 +325,7 @@ async def cb_admin_clean_db_yes(callback: CallbackQuery, _: Callable[..., str]):
 async def cmd_clean_db(message: Message, _: Callable[..., str]):
     text = "⚠️ **Database Cleanup Confirmation**\n\nAre you absolutely sure you want to clean the database?\nThis will **TRUNCATE CASCADE** all user profiles, referrals, notifications, and reset balances!\n\nThis action is **PERMANENT**."
     kb = keyboards.get_admin_clean_confirm_keyboard(_)
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 # Global cancel helper inside States
 @router.message(Command("cancel"))

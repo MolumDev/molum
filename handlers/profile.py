@@ -40,7 +40,7 @@ async def cmd_balance(message: Message, _: Callable[..., str]):
     )
     
     kb = keyboards.get_profile_keyboard(_, lang=lang)
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.message(Command("referral"))
@@ -67,7 +67,7 @@ async def cmd_referral(message: Message, _: Callable[..., str], bot: Bot):
     )
     
     kb = keyboards.get_referral_keyboard(_, user_id=user_id, bot_username=bot_username, lang=lang)
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.message(Command("leaderboard"))
@@ -84,7 +84,7 @@ async def cmd_leaderboard(message: Message, _: Callable[..., str]):
     
     text = _("leaderboard_text")
     kb = keyboards.get_leaderboard_keyboard(_, user_id=user_id, lang=lang)
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.message(Command("wallet"))
@@ -102,4 +102,4 @@ async def cmd_wallet(message: Message, _: Callable[..., str]):
     
     text = _("wallet_title", wallet_address=wallet_address)
     kb = keyboards.get_wallet_keyboard(_, user_id=user_id, lang=lang)
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")

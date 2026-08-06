@@ -61,7 +61,7 @@ async def web_app_data_handler(message: Message, _: Callable[..., str], bot: Bot
                 conf_text = f"🔌 Wallet address updated to: `{address}`"
                 
         # Send delayed deleted message
-        msg = await message.answer(conf_text, parse_mode="Markdown")
+        msg = await message.answer(conf_text, parse_mode="HTML")
         asyncio.create_task(delete_message_delayed(bot, message.chat.id, msg.message_id, 5.0))
         
         # Delete user's incoming webapp service message to keep chat perfectly clean
@@ -106,10 +106,10 @@ async def web_app_data_handler(message: Message, _: Callable[..., str], bot: Bot
             await database.add_points(user_id, reward)
             
             toast_text = _("task_check_success", task_name=task_name, points=reward)
-            msg = await message.answer(toast_text, parse_mode="Markdown")
+            msg = await message.answer(toast_text, parse_mode="HTML")
             asyncio.create_task(delete_message_delayed(bot, message.chat.id, msg.message_id, 5.0))
         else:
-            msg = await message.answer(_("task_check_failed"), parse_mode="Markdown")
+            msg = await message.answer(_("task_check_failed"), parse_mode="HTML")
             asyncio.create_task(delete_message_delayed(bot, message.chat.id, msg.message_id, 4.0))
             
         # Delete user's incoming webapp service message

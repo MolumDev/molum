@@ -24,7 +24,7 @@ async def cmd_language(message: Message, _: Callable[..., str]):
     
     text = _("lang_title")
     kb = keyboards.get_language_keyboard(_, lang=lang)
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("set_lang_"))
@@ -45,7 +45,7 @@ async def cb_set_lang(callback: CallbackQuery, _: Callable[..., str]):
     kb = keyboards.get_language_keyboard(translate_new, lang=new_lang)
     
     try:
-        await callback.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     except Exception as e:
         logger.debug(f"Failed to edit language message: {e}")
         
@@ -55,4 +55,4 @@ async def cb_set_lang(callback: CallbackQuery, _: Callable[..., str]):
     # Re-send main menu to update ReplyKeyboard instantly in the correct language!
     main_menu_text = translate_new("main_menu_title")
     menu_kb = keyboards.get_main_menu_keyboard(translate_new, lang=new_lang)
-    await callback.bot.send_message(chat_id=user_id, text=main_menu_text, reply_markup=menu_kb, parse_mode="Markdown")
+    await callback.bot.send_message(chat_id=user_id, text=main_menu_text, reply_markup=menu_kb, parse_mode="HTML")
