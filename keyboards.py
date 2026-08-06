@@ -1,4 +1,4 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 from config import CHANNEL_USERNAME, MINI_APP_URL
 
@@ -73,7 +73,7 @@ def get_leaderboard_keyboard(_, user_id: int, lang: str = "en") -> InlineKeyboar
     
     # Mini App link
     mini_app_url = f"{MINI_APP_URL}/?page=leaderboard&tg_id={user_id}&lang={lang}"
-    builder.button(text=_("btn_open_miniapp"), web_app={"url": mini_app_url})
+    builder.button(text=_("btn_open_miniapp"), web_app=WebAppInfo(url=mini_app_url))
     builder.button(text=get_delete_button(_, lang).text, callback_data=get_delete_button(_, lang).callback_data)
     builder.adjust(1, 1)
     return builder.as_markup()
@@ -84,7 +84,7 @@ def get_wallet_keyboard(_, user_id: int, lang: str = "en") -> InlineKeyboardMark
     
     # Mini App wallet link
     mini_app_url = f"{MINI_APP_URL}/wallet?tg_id={user_id}&lang={lang}"
-    builder.button(text=_("btn_connect_wallet"), web_app={"url": mini_app_url})
+    builder.button(text=_("btn_connect_wallet"), web_app=WebAppInfo(url=mini_app_url))
     builder.button(text=get_delete_button(_, lang).text, callback_data=get_delete_button(_, lang).callback_data)
     builder.adjust(1, 1)
     return builder.as_markup()
