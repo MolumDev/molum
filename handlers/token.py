@@ -33,9 +33,9 @@ async def cmd_token(message: Message, _: Callable[..., str]):
     lang = profile.get("language_code", "en")
     
     # Get current token status from settings
-    status = await database.get_setting("token_status") or "pre-launch"
+    status = await database.get_setting("token_status") or "prelaunch"
     
-    if status == "pre-launch":
+    if status in ["prelaunch", "pre-launch"]:
         # Get listing date
         listing_date_raw = await database.get_setting("listing_date") or "2026-12-31T23:59:59Z"
         listing_datetime = parse_iso_datetime(listing_date_raw)
